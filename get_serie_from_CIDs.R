@@ -52,9 +52,7 @@ get_serie_from_CIDs <- function(db_path, cids, daily=FALSE, per_unit = FALSE, di
   query_n <- paste0(
     query_n, 
     "COUNT(*) AS n_tot,
-  	  FROM tb_agrega_rue
-  	  WHERE UNIDADE_NOME IS NOT NULL 
-  	  AND UNIDADE_NOME NOT LIKE 'HOSPITAL MUNICIPAL RONALDO GAZOLLA'
+  	  FROM tb_rue
     	GROUP BY SEMANA_EPI, ANO_EPI", 
     ifelse(daily, ", DATA", ""),
     ifelse(per_unit, ", UNIDADE_NOME", ""),"

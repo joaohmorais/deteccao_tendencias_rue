@@ -30,6 +30,24 @@ rmvn <- function(n, mu, sig) {
   t(mu + L %*% matrix(rnorm(n = m*n), m, n))
 }
 
+get_gam_fitted_values <- function(mod) {
+  family <- mod$family$family
+  print(family)
+  
+  pred_t <- predict(mod, newdata = mod$model, se.fit = TRUE, type = "terms")
+  
+  fit_df <- 
+    tibble(
+      mod$model %>% select(DATA_n, dia_semana),
+      DATA = as.Date(DATA_n, origin = "1970-01-01"),
+      TREND = pred_t$fit[,2],
+      DAILY = pred_t$fit[,1],
+      CONSTANT = attr(pred_t, "constant")
+  ) %>% 
+    relocate(DATA, .before = DATA_n)
+  fit_df
+}
+
 get_gam_sim_interval <- function(mod, n_samples=1000, leave_out = "dia_semana") {
  out_ids <- which(grepl(leave_out, names(coefficients(mod))))
  

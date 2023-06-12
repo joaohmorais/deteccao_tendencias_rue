@@ -5,7 +5,7 @@ require(tidyr)
 
 # GAM FIT
 
-fit_gam <- function(df, daily_k = 7, daily_bs = "ps", weekly_k = 52, weekly_bs = "cr", family = "gaussian") {
+fit_gam <- function(df, daily_k = 7, daily_bs = "ps", weekly_k = 52, weekly_bs = "cr", family = "gaussian", offset = NULL) {
   df <- df %>% 
     mutate(DATA_n = as.numeric(DATA),
            dia_semana = wday(DATA, label=FALSE)) %>% 
@@ -17,7 +17,8 @@ fit_gam <- function(df, daily_k = 7, daily_bs = "ps", weekly_k = 52, weekly_bs =
       formula = n ~ 
         s(dia_semana, bs = daily_bs, k=daily_k) + 
         s(DATA_n, bs = weekly_bs, k=weekly_k),
-      family = family
+      family = family,
+      offset = offset
     )
 }
 

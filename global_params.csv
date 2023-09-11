@@ -1,0 +1,9 @@
+param,value
+scp_min,0
+scp_max,10
+sorder_min,0
+sorder_max,5
+tcp_min,0
+tcp_max,10
+torder_min,1
+torder_max,4

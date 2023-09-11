@@ -44,47 +44,47 @@ get_gam_fitted_values <- function(mod) {
       TREND = pred_t$fit[,2],
       DAILY = pred_t$fit[,1],
       CONSTANT = attr(pred_t, "constant")
-  ) %>% 
+    ) %>% 
     relocate(DATA, .before = DATA_n)
   fit_df
 }
 
 get_gam_sim_interval <- function(mod, n_samples=1000, leave_out = "dia_semana") {
- out_ids <- which(grepl(leave_out, names(coefficients(mod))))
- 
- pred_t <- predict(mod, newdata = mod$model, se.fit = TRUE, type = "terms")
- 
- Vb <- vcov(mod)[-out_ids,-out_ids]
- 
- se.fit <- pred_t$se.fit[,2]
- 
- set.seed(42)
- 
- BUdiff <- rmvn(n_samples, mu = rep(0, nrow(Vb)), sig = Vb)
- 
- Cg <- predict(mod, mod$model, type = "lpmatrix")
- simDev <- Cg[,-out_ids] %*% t(BUdiff)
- 
- absDev <- abs(sweep(simDev, 1, se.fit, FUN = "/"))
- 
- masd <- apply(absDev, 2L, max)
- 
- crit <- quantile(masd, prob = 0.95, type = 8)
- 
- tibble(
-   mod$model %>% select(DATA_n, dia_semana),
-   DATA = as.Date(DATA_n, origin = "1970-01-01"),
-   fit = pred_t$fit[,2] + attr(pred_t, "constant"),
-   se.fit = pred_t$se.fit[,2],
-   uprP = fit + (2 * se.fit),
-   lwrP = fit - (2 * se.fit),
-   uprS = fit + (crit * se.fit),
-   lwrS = fit - (crit * se.fit)
- ) %>% 
-   relocate(DATA, .before = DATA_n)
+  out_ids <- which(grepl(leave_out, names(coefficients(mod))))
+  
+  pred_t <- predict(mod, newdata = mod$model, se.fit = TRUE, type = "terms")
+  
+  Vb <- vcov(mod)[-out_ids,-out_ids]
+  
+  se.fit <- pred_t$se.fit[,2]
+  
+  set.seed(42)
+  
+  BUdiff <- rmvn(n_samples, mu = rep(0, nrow(Vb)), sig = Vb)
+  
+  Cg <- predict(mod, mod$model, type = "lpmatrix")
+  simDev <- Cg[,-out_ids] %*% t(BUdiff)
+  
+  absDev <- abs(sweep(simDev, 1, se.fit, FUN = "/"))
+  
+  masd <- apply(absDev, 2L, max)
+  
+  crit <- quantile(masd, prob = 0.95, type = 8)
+  
+  tibble(
+    mod$model %>% select(DATA_n, dia_semana),
+    DATA = as.Date(DATA_n, origin = "1970-01-01"),
+    fit = pred_t$fit[,2] + attr(pred_t, "constant"),
+    se.fit = pred_t$se.fit[,2],
+    uprP = fit + (2 * se.fit),
+    lwrP = fit - (2 * se.fit),
+    uprS = fit + (crit * se.fit),
+    lwrS = fit - (crit * se.fit)
+  ) %>% 
+    relocate(DATA, .before = DATA_n)
 }
 
-sample_from_gam <- function(mod, n_samples = 1000, leave_out = "dia_semana") {
+sample_from_gam <- function(mod, n_samples = 1000, leave_out = "dia_semana", cut_date = NULL) {
   out_ids <- which(grepl(leave_out, names(coefficients(mod))))
   
   Vb <- vcov(mod)[-out_ids,-out_ids]
@@ -93,13 +93,21 @@ sample_from_gam <- function(mod, n_samples = 1000, leave_out = "dia_semana") {
   sims <- rmvn(n_samples, mu = coef(mod)[-out_ids], sig = Vb)
   fits <- Cg[,-out_ids] %*% t(sims)
   
-  fits %>%
+  sample_df <- 
+    fits %>%
     as.data.frame() %>% 
     stack() %>% 
     tibble() %>% 
     mutate(DATA_n = rep(mod$model$DATA_n, ncol(fits)),
            DATA = as.Date(DATA_n, origin = "1970-01-01")) %>% 
     relocate(DATA, DATA_n, .before = everything())
+  
+  if (!is.null(cut_date)) {
+    sample_df <- sample_df %>% 
+      filter(DATA >= cut_date)
+  }
+  
+  sample_df
 }
 
 get_betas_from_sims <- function(sims, start_date, end_date, k=4, show_progress=FALSE) {
@@ -155,38 +163,20 @@ get_betas_from_sims <- function(sims, start_date, end_date, k=4, show_progress=F
 }
 
 get_beta_distrib_from_sims <- function(sims, date, k=4, show_progress=FALSE) {
-  print(date)
   sims <- sims %>% 
     filter(DATA > (as.Date(date) - k), DATA <= date) %>% 
     group_by(ind) %>% 
-    arrange(DATA) %>% 
-    mutate(r = row_number())
-  
-  beta_distrib <- tibble(
-    ind = factor(x = character(), levels = levels(sims$ind)),
-    beta = numeric(),
-    DATA = Date()
-  )
+    arrange(DATA) 
   
   if (nrow(sims) > 0) {
-    for (j in  levels(sims$ind)) {
-      if(show_progress) {
-        print(paste0("Iteration ", gsub("V", "", j), "/", length(levels(sims$ind))))
-      }
-      sims_sub <- sims %>%
-        filter(ind == j)
-      lm_mod <- lm(values ~ DATA, data=sims_sub)
-      
-      beta_distrib <- beta_distrib %>% 
-        add_row(
-          ind = j,
-          beta = coefficients(lm_mod)[2],
-          DATA = max(sims_sub$DATA)
-        )
-    }  
+    return(sims %>% 
+             do(model = lm(values ~ DATA, data = .)) %>% 
+             mutate(beta = model$coefficients[2]) %>% 
+             select(ind, beta) %>% 
+             ungroup())  
+  } else {
+    return (NA)
   }
-  
-  return(beta_distrib)
 }
 
 # SAVE FUNCTIONS ----
@@ -233,7 +223,7 @@ save_beta_distrib_to_db <- function(beta_distrib, db_path, table_name, serie, ci
            METHOD = model_name,
            K = K,
            ID_AMOSTRA = as.numeric(gsub("V", "", ind))
-           ) %>% 
+    ) %>% 
     select(
       DATA,
       UNIDADE_NOME,

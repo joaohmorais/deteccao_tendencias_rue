@@ -6,11 +6,12 @@ library(tidyverse)
 library(lubridate)
 library(duckdb)
 
-
+# have to specify dir due to cronR
+path_dir <- "/Data/dadoscoe/Desenvolvimento/Shiny_COVID/beast_alerts/"
 
 ## Paths ----
 
-paths <- read.csv("paths.csv")
+paths <- read.csv(paste0("paths.csv"))
 db_path <- paths$db_path[1]
 aux_fct_path <- paths$aux_functions_locale[1]
 

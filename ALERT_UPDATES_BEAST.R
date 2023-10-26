@@ -30,7 +30,10 @@ log_msg("Iniciando atualização...")
 
 ## Paths ----
 
-paths <- read.csv("paths.csv")
+# have to specify dir due to cronR
+path_dir <- "/Data/dadoscoe/Desenvolvimento/Shiny_COVID/beast_alerts/"
+
+paths <- read.csv(paste0(path_dir, "paths.csv"))
 beast_params <- read.csv("beast_params.csv")
 global_params <- read.csv("global_params.csv")
 db_path <- paths$db_path[1]

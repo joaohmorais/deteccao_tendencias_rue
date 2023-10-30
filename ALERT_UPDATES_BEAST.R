@@ -34,8 +34,8 @@ log_msg("Iniciando atualização...")
 path_dir <- "/Data/dadoscoe/Desenvolvimento/Shiny_COVID/beast_alerts/"
 
 paths <- read.csv(paste0(path_dir, "paths.csv"))
-beast_params <- read.csv("beast_params.csv")
-global_params <- read.csv("global_params.csv")
+beast_params <- read.csv(paste0(path_dir, "beast_params.csv"))
+global_params <- read.csv(paste0(path_dir, "global_params.csv"))
 db_path <- paths$db_path[1]
 
 DUCK_DB_RUE <- paste0(db_path, "dados_rue.duckdb") # path do banco
@@ -43,9 +43,9 @@ DUCK_DB_ALERTAS <- paste0(db_path, "alertas_rue.duckdb")
 
 ## Aux functions ----
 
-source("aux_deteccao_tendencias_rue.R")
-source("tidy_beast.R")
-source("fit_beast.R")
+source(paste0(path_dir, "aux_deteccao_tendencias_rue.R"))
+source(paste0(path_dir, "tidy_beast.R"))
+source(paste0(path_dir, "fit_beast.R"))
 
 # 1. SERIES RETRIEVAL ----
 
@@ -115,8 +115,8 @@ series_nest <- series_nest %>%
                             get_beta_distrib_from_sims,
                             date = max_date,
                             .progress = TRUE
-                            )
          )
+  )
 
 log_msg("Determinando percentual de coeficientes em crescimento na última data de observação...")
 
@@ -167,14 +167,14 @@ for (i in seq_len(nrow(series_nest))) {
   log_msg(paste0(i, "/", nrow(series_nest),
                  " (", 100*round(i/nrow(series_nest), 4), "%)"),
           tag = "BEAST")
-
+  
   trans <- series_nest$trans[i]
   season <- series_nest$season[i]
   detrend <- series_nest$detrend[i]
   deseasonalize <- series_nest$deseasonalize[i]
   
   
-    
+  
   beast_tmp <- fit_beast(series_nest$data[i][[1]], 
                          trans = trans,
                          season = season,
@@ -237,6 +237,13 @@ gam_results <-
   ) %>% 
   select(DATA, fitted_date, nivel, unidade_nome, serie, dia_semana, trend = TREND, daily = DAILY, constant = CONSTANT, smooth)
 
+dbExecute(
+  con_alt,
+  paste0(
+    "delete from tb_fitted where fitted_date = '", Sys.Date(), "';"
+  )
+)
+
 dbWriteTable(con_alt, "tb_fitted", gam_results, append = TRUE)
 
 
@@ -260,6 +267,13 @@ beast_params <-
   relocate(fitted_date, .before = everything()) %>% 
   cross_join(global_params)
 
+dbExecute(
+  con_alt,
+  paste0(
+    "delete from tb_beast_params where fitted_date = '", Sys.Date(), "';"
+  )
+)
+
 dbWriteTable(con_alt, "tb_beast_params", beast_params, append = TRUE)
 
 ## 4.4 BEAST results ----
@@ -270,6 +284,13 @@ beast_results <-
   unnest(cols = beast_df) %>% 
   mutate(fitted_date = Sys.Date()) %>% 
   relocate(DATA, fitted_date, nivel, unidade_nome, serie, .before = everything())
+
+dbExecute(
+  con_alt,
+  paste0(
+    "delete from tb_beast where fitted_date = '", Sys.Date(), "';"
+  )
+)
 
 dbWriteTable(con_alt, "tb_beast", beast_results, append=TRUE)
 

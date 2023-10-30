@@ -11,7 +11,7 @@ path_dir <- "/Data/dadoscoe/Desenvolvimento/Shiny_COVID/beast_alerts/"
 
 ## Paths ----
 
-paths <- read.csv(paste0("paths.csv"))
+paths <- read.csv(paste0(path_dir, "paths.csv"))
 db_path <- paths$db_path[1]
 aux_fct_path <- paths$aux_functions_locale[1]
 
@@ -140,8 +140,8 @@ beast_df <- beast_df %>%
   mutate(moving = serie %in% moving_series)
 
 if (denom_var == "tot_atend") {
- beast_df <- beast_df %>% 
-   mutate(denom = n_tot)
+  beast_df <- beast_df %>% 
+    mutate(denom = n_tot)
 } else if (denom_var == "z00") {
   beast_df <- beast_df %>% 
     mutate(denom = n_z00)

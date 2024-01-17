@@ -40,6 +40,8 @@ db_path <- paths$db_path[1]
 
 DUCK_DB_RUE <- paste0(db_path, "dados_rue.duckdb") # path do banco
 DUCK_DB_ALERTAS <- paste0(db_path, "alertas_rue.duckdb")
+DUCK_DB_ALERTAS_AUX <- paste0(db_path, "alertas_rue2.duckdb")
+DUCK_DB_ALERTAS_AUX_2 <- paste0(db_path, "alertas_rue3.duckdb")
 
 ## Aux functions ----
 
@@ -221,8 +223,10 @@ series_nest$beast_df <- beast_df_list
 
 log_msg("Salvando resultados...")
 
+# Saving in a separate alert file for later renaming
+
 con_alt <- dbConnect(duckdb::duckdb(),
-                     DUCK_DB_ALERTAS,
+                     DUCK_DB_ALERTAS_AUX,
                      read_only=FALSE
 )
 
@@ -237,12 +241,14 @@ gam_results <-
   ) %>% 
   select(DATA, fitted_date, nivel, unidade_nome, serie, dia_semana, trend = TREND, daily = DAILY, constant = CONSTANT, smooth)
 
-dbExecute(
-  con_alt,
-  paste0(
-    "delete from tb_fitted where fitted_date = '", Sys.Date(), "';"
+if ("tb_fitted" %in% dbListTables(con_alt)) {
+  dbExecute(
+    con_alt,
+    paste0(
+      "delete from tb_fitted where fitted_date = '", Sys.Date(), "';"
+    )
   )
-)
+}
 
 dbWriteTable(con_alt, "tb_fitted", gam_results, append = TRUE)
 
@@ -267,12 +273,14 @@ beast_params <-
   relocate(fitted_date, .before = everything()) %>% 
   cross_join(global_params)
 
-dbExecute(
-  con_alt,
-  paste0(
-    "delete from tb_beast_params where fitted_date = '", Sys.Date(), "';"
+if ("tb_beast_params" %in% dbListTables(con_alt)) {
+  dbExecute(
+    con_alt,
+    paste0(
+      "delete from tb_beast_params where fitted_date = '", Sys.Date(), "';"
+    )
   )
-)
+}
 
 dbWriteTable(con_alt, "tb_beast_params", beast_params, append = TRUE)
 
@@ -285,17 +293,27 @@ beast_results <-
   mutate(fitted_date = Sys.Date()) %>% 
   relocate(DATA, fitted_date, nivel, unidade_nome, serie, .before = everything())
 
-dbExecute(
-  con_alt,
-  paste0(
-    "delete from tb_beast where fitted_date = '", Sys.Date(), "';"
+if ("tb_beast" %in% dbListTables(con_alt)) {
+  dbExecute(
+    con_alt,
+    paste0(
+      "delete from tb_beast where fitted_date = '", Sys.Date(), "';"
+    )
   )
-)
+}
 
 dbWriteTable(con_alt, "tb_beast", beast_results, append=TRUE)
 
 dbDisconnect(con_alt, shutdown=TRUE)
 
 
-log_msg("Concluído.")
+log_msg("Gravação concluída. Tentando renomear...")
+
+
+file.rename(DUCK_DB_ALERTAS, DUCK_DB_ALERTAS_AUX_2)
+file.rename(DUCK_DB_ALERTAS_AUX, DUCK_DB_ALERTAS)
+file.rename(DUCK_DB_ALERTAS_AUX_2, DUCK_DB_ALERTAS_AUX)
+
+log_msg("Arquivos renomeados com sucesso. Operação concluída.")
+
 rm(list=ls())
